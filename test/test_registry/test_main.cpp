@@ -26,11 +26,13 @@ namespace {
 /// starting anything, but a null one is refused and rightly.
 App* never() { return nullptr; }
 
-AppInfo app(const char* id, const char* title, bool pinned = false) {
+AppInfo app(const char* id, const char* title, bool pinned = false,
+            bool last = false) {
     AppInfo a;
     a.id     = id;
     a.title  = title;
     a.pinned = pinned;
+    a.last   = last;
     return a;
 }
 
@@ -182,6 +184,40 @@ void test_sorting_nothing_is_not_a_crash(void) {
     TEST_ASSERT_EQUAL_UINT32(0u, r.count());
 }
 
+
+void test_an_app_marked_last_is_the_row_at_the_bottom(void) {
+    AppRegistry& r = fresh();
+    r.add(app("h", "HELP", /*pinned*/ false, /*last*/ true), never);
+    r.add(app("a", "ALPHA"), never);
+    r.add(app("z", "ZULU"), never);
+    r.sort();
+    char got[128];
+    titles(r, got, sizeof(got));
+    TEST_ASSERT_EQUAL_STRING("ALPHA,ZULU,HELP", got);
+}
+
+void test_a_pin_still_wins_when_something_else_is_marked_last(void) {
+    AppRegistry& r = fresh();
+    r.add(app("h", "HELP", false, true), never);
+    r.add(app("m", "MOOD", /*pinned*/ true), never);
+    r.add(app("a", "ALPHA"), never);
+    r.sort();
+    char got[128];
+    titles(r, got, sizeof(got));
+    TEST_ASSERT_EQUAL_STRING("MOOD,ALPHA,HELP", got);
+}
+
+void test_apps_marked_last_are_in_title_order_among_themselves(void) {
+    AppRegistry& r = fresh();
+    r.add(app("z", "ZEBRA", false, true), never);
+    r.add(app("h", "HELP", false, true), never);
+    r.add(app("a", "ALPHA"), never);
+    r.sort();
+    char got[128];
+    titles(r, got, sizeof(got));
+    TEST_ASSERT_EQUAL_STRING("ALPHA,HELP,ZEBRA", got);
+}
+
 // -----------------------------------------------------------------------------
 int main(int, char**) {
     UNITY_BEGIN();
@@ -195,6 +231,9 @@ int main(int, char**) {
     RUN_TEST(test_a_pinned_app_is_the_row_at_the_top);
     RUN_TEST(test_pinned_apps_are_in_title_order_among_themselves);
     RUN_TEST(test_apps_that_tie_keep_the_order_they_registered_in);
+    RUN_TEST(test_an_app_marked_last_is_the_row_at_the_bottom);
+    RUN_TEST(test_a_pin_still_wins_when_something_else_is_marked_last);
+    RUN_TEST(test_apps_marked_last_are_in_title_order_among_themselves);
     RUN_TEST(test_sorting_loses_nothing_and_invents_nothing);
     RUN_TEST(test_sorting_nothing_is_not_a_crash);
 

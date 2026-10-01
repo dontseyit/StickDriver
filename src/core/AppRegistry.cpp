@@ -24,14 +24,16 @@ const AppEntry* AppRegistry::find(const char* id) const {
 }
 
 void AppRegistry::sort() {
-    // Pinned first, then by title. A sort key has to be something the reader
-    // can see, and a pin is: it is the row at the top. Group is not drawn, so
+    // Pinned first, anything marked last at the bottom, the rest by title. A
+    // sort key has to be something the reader can see, and both of these are:
+    // they are the row at the top and the row at the end. Group is not drawn, so
     // sorting by it put RIDE between LEVEL and ROBOT JIG for no visible reason.
     //
     // Insertion sort: n is tiny and it is stable, so apps sharing a title or a
     // pin stay in registration order.
     auto before = [](const AppInfo& a, const AppInfo& b) {
         if (a.pinned != b.pinned) return a.pinned;
+        if (a.last != b.last) return b.last;
         return std::strcmp(a.title, b.title) <= 0;
     };
 

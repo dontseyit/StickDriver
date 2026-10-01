@@ -40,16 +40,40 @@ constexpr AppInfo kInfo{
     .tickHz   = 10,
     .drawHz   = 5,
     .accent   = ui::theme::kCyan,
-    .what     = "Board vitals, the dies as read, and SETTINGS: Library Mode, plus a row per tool kept here.",
-    .how      = "B pages. A beeps; hold A on THERMAL forgets the warm-up; on SETTINGS hold A moves, A acts.",
+    .what     = "Board vitals, the dies as read, SCREEN for the panel, SETTINGS for the rest.",
+    .how      = "B pages. A beeps; hold A on THERMAL forgets the warm-up; on SCREEN and SETTINGS A moves, hold A acts.",
     .care     = "No die is the air. Library Mode holds across a reboot; the LIB tag says it is on.",
 };
 
-enum Page : uint8_t { kVitals = 0, kThermal, kSettings, kPageCount };
+enum Page : uint8_t { kVitals = 0, kThermal, kScreen, kSettings, kPageCount };
 
-/// SETTINGS rows: preferences first, then one per tool that named this app as
-/// its parent. Library Mode is the only preference so far.
+/// SCREEN rows: everything about the panel, in the order the three timings
+/// happen - how bright, how long bright, how long before dark, how far down in
+/// between.
+enum { kScrBright = 0, kScrDim, kScrSleep, kScrDimBy, kScrRows };
+
+/// SETTINGS rows: the preferences that are not about the panel, then one per
+/// tool that named this app as its parent.
 enum { kRowLibrary = 0, kFixedRows };
+
+/// Seconds as the row shows them: never, minutes where they divide, seconds
+/// otherwise.
+void writeDuration(char* out, size_t cap, uint16_t sec) {
+    if (sec == SystemSettings::kNeverSleep) {
+        std::snprintf(out, cap, "never");
+    } else if (sec >= 60 && sec % 60 == 0) {
+        std::snprintf(out, cap, "%um", static_cast<unsigned>(sec / 60));
+    } else {
+        std::snprintf(out, cap, "%us", static_cast<unsigned>(sec));
+    }
+}
+
+template <typename T, size_t N>
+T nextStep(const T (&steps)[N], T cur) {
+    for (size_t i = 0; i < N; ++i)
+        if (steps[i] == cur) return steps[(i + 1) % N];
+    return steps[0];
+}
 
 class SystemInfoApp : public App {
 public:
@@ -58,6 +82,8 @@ public:
         _rows.setCount(kFixedRows + _childCount);
         // Coming back from CALIBRATION should land on the row that opened it.
         _rows.select(_settingsRow);
+        _screen.setCount(kScrRows);
+        _screen.select(_screenRow);
     }
 
     void onStop() override {
@@ -85,16 +111,54 @@ public:
             // one button meaning two things by page is worse than a quiet one.
             return false;
         }
+        if (_page == kScreen) {
+            // B is spoken for by the pages, so A does both jobs: a click moves
+            // the cursor, a hold changes the row it is over. Moving is what you
+            // do most and takes the cheaper gesture; changing something stored
+            // is the committing one and takes the deliberate gesture. A hold
+            // suppresses the click that would otherwise follow it, so one press
+            // of A never does both, and Repeat is left alone so a long hold
+            // steps once rather than spinning through the values.
+            if (ev.click(Btn::A)) {
+                _screen.next();
+                _screenRow = _screen.selected();
+                return true;
+            }
+            if (!ev.longPress(Btn::A)) return false;
+            auto& set = systemSettings();
+            switch (_screen.selected()) {
+                case kScrBright:
+                    set.setBrightnessPct(
+                        nextStep(SystemSettings::kBrightSteps, set.brightnessPct()));
+                    // Applied here rather than waited for: the panel is what the
+                    // setting is about, so it has to answer the press.
+                    M5.Display.setBrightness(set.brightness());
+                    break;
+                case kScrDim:
+                    set.setDimAfterSec(
+                        nextStep(SystemSettings::kDimSteps, set.dimAfterSec()));
+                    break;
+                case kScrSleep:
+                    set.setSleepAfterSec(
+                        nextStep(SystemSettings::kSleepSteps, set.sleepAfterSec()));
+                    break;
+                case kScrDimBy:
+                    set.setDimByPct(
+                        nextStep(SystemSettings::kDimBySteps, set.dimByPct()));
+                    break;
+                default: break;
+            }
+            return true;
+        }
         if (_page == kSettings) {
-            // B is spoken for by the pages, so the cursor moves on a hold of A
-            // and a click acts on the row it is over.
-            if (ev.longPress(Btn::A)) {
+            // As SCREEN: a click moves, a hold acts on the row.
+            if (ev.click(Btn::A)) {
                 _rows.next();
                 _settingsRow = _rows.selected();
                 return true;
             }
-            if (!ev.click(Btn::A)) return false;
-            if (_rows.selected() != kRowLibrary) {
+            if (!ev.longPress(Btn::A)) return false;
+            if (_rows.selected() >= kFixedRows) {
                 apps().launch(childInfo(_rows.selected() - kFixedRows).id);
                 return true;
             }
@@ -127,6 +191,7 @@ public:
 
     void onDraw(ui::Canvas& c) override {
         if (_page == kThermal)  { drawThermal(c); return; }
+        if (_page == kScreen)   { drawScreen(c); return; }
         if (_page == kSettings) { drawSettings(c); return; }
         // Ten rows have to land above the footer hairline at 123. Text has a
         // transparent background here, so an overlap interleaves rather than
@@ -265,6 +330,78 @@ public:
                 static_cast<double>(ThermalService::overheatLimitC()));
     }
 
+    // -- screen ---------------------------------------------------------------
+    /// The panel's four numbers. The line under them says what they come to
+    /// together, because the dim is a reduction and nobody should have to do the
+    /// arithmetic to find out where it lands.
+    void drawScreen(ui::Canvas& c) {
+        constexpr int kPitch = 19;
+        const int     top    = 24;
+        auto&         set    = systemSettings();
+
+        for (int i = 0; i < kScrRows; ++i) {
+            const int   y   = top + i * kPitch;
+            const bool  sel = (i == _screen.selected());
+            const char* name = "";
+            char        val[12]{};
+            uint16_t    tint = ui::theme::kCyan;
+
+            switch (i) {
+                case kScrBright:
+                    name = "brightness";
+                    std::snprintf(val, sizeof(val), "%u%%",
+                                  static_cast<unsigned>(set.brightnessPct()));
+                    break;
+                case kScrDim:
+                    name = "dim after";
+                    writeDuration(val, sizeof(val), set.dimAfterSec());
+                    break;
+                case kScrSleep:
+                    name = "sleep after";
+                    writeDuration(val, sizeof(val), set.sleepAfterSec());
+                    // The one value here that costs the cell rather than saving
+                    // it.
+                    if (set.sleepAfterSec() == SystemSettings::kNeverSleep)
+                        tint = ui::theme::kWarn;
+                    break;
+                default:
+                    name = "dim by";
+                    std::snprintf(val, sizeof(val), "%u%%",
+                                  static_cast<unsigned>(set.dimByPct()));
+                    break;
+            }
+
+            if (sel) {
+                c.fillRoundRect(2, y - 9, c.w() - 4, 18, 3, ui::theme::kSurface);
+            }
+            c.textAt(10, y, name, sel ? ui::theme::kText : ui::theme::kDim,
+                     &fonts::Font2, middle_left);
+            c.textAt(c.w() - 8, y, val, sel ? tint : ui::theme::kFaint,
+                     &fonts::Font2, middle_right);
+        }
+
+        // One line, because four rows leave one line. It states the outcome
+        // rather than explaining a row: the rows say what they are.
+        const unsigned dimPct =
+            set.brightnessPct() * (100u - set.dimByPct()) / 100u;
+        char line[64];
+        if (set.sleepAfterSec() == SystemSettings::kNeverSleep) {
+            std::snprintf(line, sizeof(line), "%u%%, then %u%% - never dark",
+                          static_cast<unsigned>(set.brightnessPct()), dimPct);
+        } else if (set.sleepAfterSec() <= set.dimAfterSec()) {
+            // 37 characters is one line of Font0 across this panel, and four rows
+            // leave exactly one.
+            std::snprintf(line, sizeof(line), "%u%%, then dark - sleep is sooner",
+                          static_cast<unsigned>(set.brightnessPct()));
+        } else {
+            std::snprintf(line, sizeof(line), "%u%%, then %u%%, then dark",
+                          static_cast<unsigned>(set.brightnessPct()), dimPct);
+        }
+        ui::drawWrapped(c, 8, top + kScrRows * kPitch + 4, c.w() - 16,
+                        c.h() - ui::theme::kFootH - 2, 10, line,
+                        ui::theme::kFaint, &fonts::Font0);
+    }
+
     // -- settings -------------------------------------------------------------
     /// Rows in the manner of CALIBRATION's speaker page, and a line under them
     /// saying what the selected one is: a setting that has to be guessed at
@@ -318,20 +455,25 @@ public:
 
     const char* hintA() const override {
         switch (_page) {
+            case kVitals:   return "A beep";
             case kThermal:  return "hold A forget";
+            case kScreen:   return "A next - hold change";
             case kSettings:
-                return (_rows.selected() == kRowLibrary) ? "A toggle - hold next"
-                                                        : "A open - hold next";
-            default:        return "A test beep";
+                return (_rows.selected() == kRowLibrary) ? "A next - hold toggle"
+                                                         : "A next - hold open";
+            default:        return nullptr;
         }
     }
+
     const char* hintB() const override {
         switch (_page) {
-            case kThermal:  return "B settings";
-            case kSettings: return "B vitals";
-            default:        return "B thermal";
+            case kVitals:   return "B thermal";
+            case kThermal:  return "B screen";
+            case kScreen:   return "B settings";
+            default:        return "B vitals";
         }
     }
+
     /// The die temperature, visible from the other page too, and labelled: an
     /// unqualified temperature in a corner is how the retired air estimate got
     /// believed.
@@ -400,6 +542,7 @@ private:
     }
 
     ui::ListMenu _rows;
+    ui::ListMenu _screen;
     int          _child[kMaxChildren]{};
     int          _childCount = 0;
 
@@ -407,9 +550,11 @@ private:
     /// opened from.
     static Page _page;
     static int  _settingsRow;
+    static int  _screenRow;
 };
 
 Page SystemInfoApp::_page        = kVitals;
+int  SystemInfoApp::_screenRow   = 0;
 int  SystemInfoApp::_settingsRow = kRowLibrary;
 
 void SystemInfoApp::row(ui::Canvas& c, int y, const char* label, const char* fmt, ...) {

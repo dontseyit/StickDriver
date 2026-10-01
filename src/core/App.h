@@ -27,6 +27,10 @@ struct AppInfo {
     /// Sorts to the top of the launcher whatever its title, for the one app you
     /// should not have to find alphabetically.
     bool        pinned   = false;
+    /// And the other end: sorts to the bottom whatever its title, for a tool
+    /// that is about the device rather than one of the things it does. A pin
+    /// still wins, so the two cannot fight over the same row.
+    bool        last     = false;
     /// The app that lists this one instead of the launcher: a game names GAMES.
     /// The launcher skips anything with a parent and the parent lists whatever
     /// names it, so a nested tool is still one file. It stays a registered app
@@ -44,11 +48,12 @@ struct AppInfo {
     /// is, so display SPI, the RMT that clocks IR, and I2S do not move with it.
     /// Compute-bound work gains nothing.
     uint16_t    cpuMhz   = 240;
-    /// Seconds without a press or a pick-up before the panel dims; 45 is the
-    /// default. A tool that is carried and listened to rather than watched can
-    /// say less, since the panel is the largest load on the cell. Blanking
-    /// stays at the framework's three minutes.
-    uint16_t    dimAfterSec = 45;
+    /// Seconds without a press or a pick-up before the panel dims. Zero, the
+    /// default, means whatever SYSTEM's SETTINGS page is set to. A tool that is
+    /// carried and listened to rather than watched can name fewer seconds than
+    /// the device would, since the panel is the largest load on the cell.
+    /// Blanking stays at the framework's three minutes.
+    uint16_t    dimAfterSec = 0;
     uint16_t    accent   = 0;        ///< RGB565 accent, 0 = use the theme default
     bool        fullscreen = false;  ///< suppress the framework status bar/footer
 

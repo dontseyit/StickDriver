@@ -175,16 +175,6 @@ void AppManager::dispatchEvents() {
 // -----------------------------------------------------------------------------
 //  The backlight, which nothing was ever turning down
 // -----------------------------------------------------------------------------
-namespace {
-/// The panel is the largest single load on a 250 mAh cell. Forty-five seconds
-/// is longer than anybody stares at a screen without touching it or moving the
-/// device; three minutes is long enough to have stopped watching.
-constexpr uint32_t kDimAfterSec   = 45;
-constexpr uint32_t kBlankAfterSec = 180;
-/// Readable in a dark room at a fraction of the current of a readable one.
-constexpr uint8_t  kDimBrightness = 12;
-}  // namespace
-
 /// Only the panel sleeps. The app is never told, never stopped and never loses
 /// a capability: a ride goes on recording, a night goes on logging, the web
 /// server goes on answering. What stops is 64 KB of SPI nobody is looking at.
@@ -200,22 +190,31 @@ void AppManager::updateBacklight() {
     // the device being picked up, so a tool watched while held never goes dark.
     const uint32_t idle = services().mood().idleSec();
 
-    // The app's own number when it states one; see AppInfo::dimAfterSec. An app
-    // dimming later than the blank would skip straight to dark, so the blank
-    // moves out a minute past it.
-    const uint32_t dimAfter   = _app ? _app->info().dimAfterSec : kDimAfterSec;
-    const uint32_t blankAfter = dimAfter < kBlankAfterSec ? kBlankAfterSec : dimAfter + 60;
+    // The app's own number when it states one, the device's when it does not;
+    // see AppInfo::dimAfterSec.
+    uint32_t dimAfter = _app ? _app->info().dimAfterSec : 0;
+    if (dimAfter == 0) dimAfter = systemSettings().dimAfterSec();
 
-    if (idle < dimAfter) {
-        wakeBacklight();
-    } else if (idle >= blankAfter) {
+    const uint16_t sleepAfter = systemSettings().sleepAfterSec();
+
+    // Dark first, so a sleep set no later than the dim simply wins: the dim had
+    // no time to happen and the panel goes straight from lit to dark. Nothing in
+    // the UI has to forbid the combination, because the numbers already say it.
+    if (sleepAfter != SystemSettings::kNeverSleep && idle >= sleepAfter) {
         if (_backlight != Backlight::Blank) {
             _backlight = Backlight::Blank;
             M5.Display.setBrightness(0);
         }
+        return;
+    }
+
+    if (idle < dimAfter) {
+        wakeBacklight();
     } else if (_backlight == Backlight::Awake) {
         _backlight = Backlight::Dimmed;
-        M5.Display.setBrightness(kDimBrightness);
+        // A reduction of the brightness rather than a level of its own, so a
+        // panel already set low does not dim to the same place as a bright one.
+        M5.Display.setBrightness(systemSettings().dimBrightness());
     }
 }
 

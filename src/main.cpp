@@ -11,6 +11,7 @@
 #include "core/AppRegistry.h"
 #include "core/Log.h"
 #include "services/ServiceHub.h"
+#include "services/SystemSettings.h"
 
 namespace {
 constexpr const char* kHomeApp = "launcher";
@@ -31,12 +32,15 @@ void setup() {
     cfg.output_power    = false;  // EXT_5V is refcounted by PowerService
     M5.begin(cfg);
 
-    M5.Display.setBrightness(110);
-
     SD_LOGI("boot", "Screwdriver up: %d apps registered",
             static_cast<int>(sd::AppRegistry::instance().count()));
 
     sd::services().begin();
+
+    // After the services, because the brightness is a stored preference now and
+    // SystemSettings loads inside ServiceHub::begin(). Until here the panel runs
+    // at whatever M5Unified set, for the few milliseconds that takes.
+    M5.Display.setBrightness(sd::systemSettings().brightness());
 
     if (!sd::apps().begin(kHomeApp)) {
         M5.Display.setRotation(1);
