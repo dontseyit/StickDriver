@@ -36,10 +36,12 @@ Y0   = TOP + 23          # body start, no subtitle line
 MAXY = 135 - FOOT        # 123
 worst = []
 # Every .cpp, not only src/apps: CONSOLE lives in src/web and had a HELP page
-# nothing was checking.
+# nothing was checking. Any AppInfo name, not only kInfo: a folder's AppInfo is
+# an external `inline constexpr AppInfo kSomethingFolder`, which the kInfo
+# pattern skipped, so no folder's HELP page was ever measured.
 for f in sorted(glob.glob('src/**/*.cpp', recursive=True)):
     src = open(f).read()
-    m = re.search(r'constexpr AppInfo kInfo\{(.*?)\n\};', src, re.S)
+    m = re.search(r'constexpr AppInfo \w+\{(.*?)\n\};', src, re.S)
     if not m: continue
     body = m.group(1)
     def field(n):
