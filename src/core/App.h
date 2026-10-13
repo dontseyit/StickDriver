@@ -24,13 +24,17 @@ struct AppInfo {
     const char* title    = "";       ///< shown in the launcher
     const char* subtitle = "";       ///< one-line description
     const char* group    = "MISC";   ///< kind of tool; shown by HELP, not sorted on
-    /// Sorts to the top of the launcher whatever its title, for the one app you
-    /// should not have to find alphabetically.
-    bool        pinned   = false;
-    /// And the other end: sorts to the bottom whatever its title, for a tool
-    /// that is about the device rather than one of the things it does. A pin
-    /// still wins, so the two cannot fight over the same row.
-    bool        last     = false;
+    /// Where the tool sits in the launcher. Lower comes first, and tools sharing
+    /// a number fall back to their titles.
+    ///
+    /// The tools are numbered in tens, so one can be moved or inserted without
+    /// renumbering its neighbours. The default is past all of them and before
+    /// HELP, which stays last: a new tool turns up at the end of the list, where
+    /// it is visible without displacing anything.
+    ///
+    /// This is the only thing that decides the order, and each tool states its
+    /// own: there is no list to edit, so adding a tool stays one file.
+    uint8_t     order    = 200;
     /// The app that lists this one instead of the launcher: a game names GAMES.
     /// The launcher skips anything with a parent and the parent lists whatever
     /// names it, so a nested tool is still one file. It stays a registered app
@@ -45,7 +49,7 @@ struct AppInfo {
     ///
     /// A tool that draws a list and waits for a press can say 160 and idle at
     /// 27.6 mA instead of 32.9. APB is a fixed 80 MHz on the S3 whatever this
-    /// is, so display SPI, the RMT that clocks IR, and I2S do not move with it.
+    /// is, so display SPI and I2S do not move with it.
     /// Compute-bound work gains nothing.
     uint16_t    cpuMhz   = 240;
     /// Seconds without a press or a pick-up before the panel dims. Zero, the

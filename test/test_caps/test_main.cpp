@@ -4,8 +4,8 @@
 //  These are the board's hostilities written down: which peripherals imply
 //  another, and which cannot be powered at the same time. Every request passes
 //  through expandImplied() before anything is switched on, so a mistake here is
-//  not a wrong answer on a screen, it is a microphone that records silence or
-//  an infrared receiver that hears nothing while the amplifier hums beside it.
+//  not a wrong answer on a screen, it is a microphone that records silence, or
+//  a module on an unpowered rail that answers no scan.
 //
 //  That is why they are worth testing and why they were not tested: the rules
 //  are pure bit arithmetic, but they lived in ServiceHub.cpp, which cannot be
@@ -27,21 +27,27 @@ constexpr bool kLibraryOff = false;
 constexpr bool kLibraryOn  = true;
 
 CapMask want(CapMask m) { return expandImplied(m, kLibraryOff); }
+
+/// One past every request the sweeps below try: each mask of the bits in use.
+constexpr uint32_t kEveryRequest = 1u << 9;
+static_assert(caps(Cap::Ir) == kEveryRequest >> 1,
+              "a new Cap bit must widen the sweeps");
 }  // namespace
 
 // -----------------------------------------------------------------------------
 //  What a request drags up with it
 // -----------------------------------------------------------------------------
-void test_infrared_brings_the_five_volt_rail_with_it(void) {
-    // The IR silicon sits on EXT_5V, which M5Unified leaves off. An app that
-    // asked only for IR and got only IR would transmit nothing.
-    TEST_ASSERT_TRUE(has(want(caps(Cap::IrTx)), Cap::Ext5V));
-    TEST_ASSERT_TRUE(has(want(caps(Cap::IrRx)), Cap::Ext5V));
+void test_the_port_brings_the_rail_up_too(void) {
+    // PORT.A's 5V pin feeds whatever somebody plugged into it, and M5Unified
+    // leaves the rail off. An app that asked only for the port and got only the
+    // port would scan an unpowered bus and report a wiring fault.
+    TEST_ASSERT_TRUE(has(want(caps(Cap::PortA)), Cap::Ext5V));
 }
 
-void test_the_port_brings_the_rail_up_too(void) {
-    // PORT.A's 5V pin feeds whatever somebody plugged into it.
-    TEST_ASSERT_TRUE(has(want(caps(Cap::PortA)), Cap::Ext5V));
+void test_infrared_brings_the_rail_up_too(void) {
+    // The infrared LED and receiver are powered from EXT_5V. Without the rail
+    // the receiver hears nothing and the LED never lights.
+    TEST_ASSERT_TRUE(has(want(caps(Cap::Ir)), Cap::Ext5V));
 }
 
 void test_nothing_else_asks_for_the_rail(void) {
@@ -54,20 +60,6 @@ void test_nothing_else_asks_for_the_rail(void) {
 // -----------------------------------------------------------------------------
 //  What cannot be on at the same time as what
 // -----------------------------------------------------------------------------
-void test_the_receiver_wins_over_the_amplifier(void) {
-    // The IR receiver does not work while the speaker amp is powered. Dropped
-    // rather than allowed to half-work.
-    const CapMask m = want(Cap::IrRx | Cap::Speaker);
-    TEST_ASSERT_TRUE(has(m, Cap::IrRx));
-    TEST_ASSERT_FALSE(has(m, Cap::Speaker));
-}
-
-void test_transmitting_does_not_cost_the_speaker(void) {
-    // Only the RECEIVER conflicts. Striking the speaker for IrTx as well would
-    // silence an app that had every right to both.
-    TEST_ASSERT_TRUE(has(want(Cap::IrTx | Cap::Speaker), Cap::Speaker));
-}
-
 void test_listening_wins_over_playing(void) {
     // Mic and speaker share BCLK, WS and MCLK, and the codec's two callbacks
     // disagree about the clock manager. An app that asked to record and
@@ -75,6 +67,19 @@ void test_listening_wins_over_playing(void) {
     const CapMask m = want(Cap::Mic | Cap::Speaker);
     TEST_ASSERT_TRUE(has(m, Cap::Mic));
     TEST_ASSERT_FALSE(has(m, Cap::Speaker));
+}
+
+void test_infrared_silences_the_speaker(void) {
+    // The receiver reads nothing while the amplifier is powered.
+    const CapMask m = want(Cap::Ir | Cap::Speaker);
+    TEST_ASSERT_TRUE(has(m, Cap::Ir));
+    TEST_ASSERT_FALSE(has(m, Cap::Speaker));
+}
+
+void test_infrared_and_the_microphone_coexist(void) {
+    const CapMask m = want(Cap::Ir | Cap::Mic);
+    TEST_ASSERT_TRUE(has(m, Cap::Ir));
+    TEST_ASSERT_TRUE(has(m, Cap::Mic));
 }
 
 void test_wifi_takes_the_front_end_from_bluetooth(void) {
@@ -93,9 +98,9 @@ void test_bluetooth_alone_is_left_alone(void) {
 //  The standing decision
 // -----------------------------------------------------------------------------
 void test_library_mode_outranks_whatever_an_app_asked_for(void) {
-    // A standing decision rather than a per-request one, so it wins the way IR
-    // does. Every request passes through here, which is what makes "no app can
-    // forget to check" a fact rather than a hope.
+    // A standing decision rather than a per-request one, so it wins the way the
+    // mic does. Every request passes through here, which is what makes "no app
+    // can forget to check" a fact rather than a hope.
     TEST_ASSERT_FALSE(
         has(expandImplied(caps(Cap::Speaker), kLibraryOn), Cap::Speaker));
     TEST_ASSERT_TRUE(
@@ -126,7 +131,7 @@ void test_expanding_an_expanded_mask_changes_nothing(void) {
     // The hub compares the expanded mask against what is already active, so a
     // rule that kept moving bits on a second pass would make every request look
     // like a change and tear working peripherals down to rebuild them.
-    for (uint32_t bits = 0; bits < 1024u; ++bits) {
+    for (uint32_t bits = 0; bits < kEveryRequest; ++bits) {
         for (bool lib : {false, true}) {
             const CapMask once  = expandImplied(bits, lib);
             const CapMask twice = expandImplied(once, lib);
@@ -136,14 +141,15 @@ void test_expanding_an_expanded_mask_changes_nothing(void) {
 }
 
 void test_the_speaker_never_survives_anything_that_beats_it(void) {
-    // Whatever else is asked for alongside, these three always win. Swept
-    // rather than spot-checked, because the rules apply in sequence and an
-    // order that let one undo another would show on some combinations only.
-    for (uint32_t bits = 0; bits < 1024u; ++bits) {
+    // Whatever else is asked for alongside, these two always win. Swept rather
+    // than spot-checked, because the rules apply in sequence and an order that
+    // let one undo another would show on some combinations only.
+    for (uint32_t bits = 0; bits < kEveryRequest; ++bits) {
         const CapMask asked = bits | caps(Cap::Speaker);
         for (bool lib : {false, true}) {
             const CapMask m = expandImplied(asked, lib);
-            const bool beaten = lib || has(asked, Cap::Mic) || has(asked, Cap::IrRx);
+            const bool beaten =
+                lib || has(asked, Cap::Mic) || has(asked, Cap::Ir);
             TEST_ASSERT_EQUAL(!beaten, has(m, Cap::Speaker));
         }
     }
@@ -153,13 +159,13 @@ void test_the_speaker_never_survives_anything_that_beats_it(void) {
 int main(int, char**) {
     UNITY_BEGIN();
 
-    RUN_TEST(test_infrared_brings_the_five_volt_rail_with_it);
     RUN_TEST(test_the_port_brings_the_rail_up_too);
+    RUN_TEST(test_infrared_brings_the_rail_up_too);
     RUN_TEST(test_nothing_else_asks_for_the_rail);
 
-    RUN_TEST(test_the_receiver_wins_over_the_amplifier);
-    RUN_TEST(test_transmitting_does_not_cost_the_speaker);
     RUN_TEST(test_listening_wins_over_playing);
+    RUN_TEST(test_infrared_silences_the_speaker);
+    RUN_TEST(test_infrared_and_the_microphone_coexist);
     RUN_TEST(test_wifi_takes_the_front_end_from_bluetooth);
     RUN_TEST(test_bluetooth_alone_is_left_alone);
 

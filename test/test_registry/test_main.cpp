@@ -26,13 +26,11 @@ namespace {
 /// starting anything, but a null one is refused and rightly.
 App* never() { return nullptr; }
 
-AppInfo app(const char* id, const char* title, bool pinned = false,
-            bool last = false) {
+AppInfo app(const char* id, const char* title, uint8_t order = 128) {
     AppInfo a;
-    a.id     = id;
-    a.title  = title;
-    a.pinned = pinned;
-    a.last   = last;
+    a.id    = id;
+    a.title = title;
+    a.order = order;
     return a;
 }
 
@@ -109,11 +107,11 @@ void test_the_list_is_in_title_order(void) {
     TEST_ASSERT_EQUAL_STRING("LEVEL,MINES,RIDE", got);
 }
 
-void test_a_pinned_app_is_the_row_at_the_top(void) {
-    // The pin is a sort key because it is something the reader can see.
+void test_a_lower_order_comes_first(void) {
+    // Order is a sort key because the launcher is where it shows.
     AppRegistry&  r = fresh();
     const AppInfo a = app("a", "ANALYSER");
-    const AppInfo z = app("z", "ZZZ", /*pinned*/ true);
+    const AppInfo z = app("z", "ZZZ", /*order*/ 0);
     r.add(a, never); r.add(z, never);
     r.sort();
 
@@ -122,17 +120,69 @@ void test_a_pinned_app_is_the_row_at_the_top(void) {
     TEST_ASSERT_EQUAL_STRING("ZZZ,ANALYSER", got);
 }
 
-void test_pinned_apps_are_in_title_order_among_themselves(void) {
-    AppRegistry&  r = fresh();
-    const AppInfo b = app("b", "RIDE",  true);
-    const AppInfo a = app("a", "LEVEL", true);
-    const AppInfo u = app("u", "AAA");
-    r.add(b, never); r.add(a, never); r.add(u, never);
+void test_a_higher_order_goes_to_the_bottom(void) {
+    AppRegistry& r = fresh();
+    r.add(app("h", "HELP", /*order*/ 255), never);
+    r.add(app("a", "ALPHA"), never);
+    r.add(app("z", "ZULU"), never);
     r.sort();
 
     char got[128];
     titles(r, got, sizeof(got));
-    TEST_ASSERT_EQUAL_STRING("LEVEL,RIDE,AAA", got);
+    TEST_ASSERT_EQUAL_STRING("ALPHA,ZULU,HELP", got);
+}
+
+void test_every_order_is_available_not_just_the_two_ends(void) {
+    // The point of a number rather than a flag: an order nobody could spell
+    // with a top and a bottom.
+    AppRegistry& r = fresh();
+    r.add(app("d", "DELTA", 200), never);
+    r.add(app("a", "ALPHA", 10), never);
+    r.add(app("c", "CHARLIE", 100), never);
+    r.add(app("b", "BRAVO", 50), never);
+    r.sort();
+
+    char got[128];
+    titles(r, got, sizeof(got));
+    TEST_ASSERT_EQUAL_STRING("ALPHA,BRAVO,CHARLIE,DELTA", got);
+}
+
+void test_apps_sharing_an_order_fall_back_to_the_title(void) {
+    AppRegistry& r = fresh();
+    r.add(app("z", "ZEBRA", 10), never);
+    r.add(app("h", "HELP", 10), never);
+    r.add(app("a", "ALPHA"), never);
+    r.sort();
+
+    char got[128];
+    titles(r, got, sizeof(got));
+    TEST_ASSERT_EQUAL_STRING("HELP,ZEBRA,ALPHA", got);
+}
+
+void test_the_default_leaves_room_at_both_ends(void) {
+    AppRegistry& r = fresh();
+    AppInfo      held[12];
+    char         ids[12][8];
+    const char*  names[12] = {"M","C","Z","A","Q","B","Y","D","N","E","X","F"};
+    for (int i = 0; i < 12; ++i) {
+        std::snprintf(ids[i], sizeof(ids[i]), "i%d", i);
+        held[i] = app(ids[i], names[i], (i % 4) == 0 ? 0 : 128);
+        r.add(held[i], never);
+    }
+    r.sort();
+
+    TEST_ASSERT_EQUAL_UINT32(12u, r.count());
+    for (int i = 0; i < 12; ++i) TEST_ASSERT_NOT_NULL(r.find(ids[i]));
+    // And it really is sorted: by order, then ascending by title within a run.
+    for (size_t i = 1; i < r.count(); ++i) {
+        const AppInfo& prev = *r.at(i - 1).info;
+        const AppInfo& cur  = *r.at(i).info;
+        if (prev.order != cur.order) {
+            TEST_ASSERT_TRUE(prev.order < cur.order);
+        } else {
+            TEST_ASSERT_TRUE(std::strcmp(prev.title, cur.title) <= 0);
+        }
+    }
 }
 
 void test_apps_that_tie_keep_the_order_they_registered_in(void) {
@@ -159,19 +209,19 @@ void test_sorting_loses_nothing_and_invents_nothing(void) {
     const char*  names[12] = {"M","C","Z","A","Q","B","Y","D","N","E","X","F"};
     for (int i = 0; i < 12; ++i) {
         std::snprintf(ids[i], sizeof(ids[i]), "i%d", i);
-        held[i] = app(ids[i], names[i], /*pinned*/ (i % 4) == 0);
+        held[i] = app(ids[i], names[i], /*order*/ (i % 4) == 0 ? 0 : 128);
         r.add(held[i], never);
     }
     r.sort();
 
     TEST_ASSERT_EQUAL_UINT32(12u, r.count());
     for (int i = 0; i < 12; ++i) TEST_ASSERT_NOT_NULL(r.find(ids[i]));
-    // And it really is sorted: pinned first, each run ascending by title.
+    // And it really is sorted: by order, each run ascending by title.
     for (size_t i = 1; i < r.count(); ++i) {
         const AppInfo& prev = *r.at(i - 1).info;
         const AppInfo& cur  = *r.at(i).info;
-        if (prev.pinned != cur.pinned) {
-            TEST_ASSERT_TRUE(prev.pinned);          // pinned never follows loose
+        if (prev.order != cur.order) {
+            TEST_ASSERT_TRUE(prev.order < cur.order);  // never out of order
         } else {
             TEST_ASSERT_TRUE(std::strcmp(prev.title, cur.title) <= 0);
         }
@@ -185,39 +235,6 @@ void test_sorting_nothing_is_not_a_crash(void) {
 }
 
 
-void test_an_app_marked_last_is_the_row_at_the_bottom(void) {
-    AppRegistry& r = fresh();
-    r.add(app("h", "HELP", /*pinned*/ false, /*last*/ true), never);
-    r.add(app("a", "ALPHA"), never);
-    r.add(app("z", "ZULU"), never);
-    r.sort();
-    char got[128];
-    titles(r, got, sizeof(got));
-    TEST_ASSERT_EQUAL_STRING("ALPHA,ZULU,HELP", got);
-}
-
-void test_a_pin_still_wins_when_something_else_is_marked_last(void) {
-    AppRegistry& r = fresh();
-    r.add(app("h", "HELP", false, true), never);
-    r.add(app("m", "MOOD", /*pinned*/ true), never);
-    r.add(app("a", "ALPHA"), never);
-    r.sort();
-    char got[128];
-    titles(r, got, sizeof(got));
-    TEST_ASSERT_EQUAL_STRING("MOOD,ALPHA,HELP", got);
-}
-
-void test_apps_marked_last_are_in_title_order_among_themselves(void) {
-    AppRegistry& r = fresh();
-    r.add(app("z", "ZEBRA", false, true), never);
-    r.add(app("h", "HELP", false, true), never);
-    r.add(app("a", "ALPHA"), never);
-    r.sort();
-    char got[128];
-    titles(r, got, sizeof(got));
-    TEST_ASSERT_EQUAL_STRING("ALPHA,HELP,ZEBRA", got);
-}
-
 // -----------------------------------------------------------------------------
 int main(int, char**) {
     UNITY_BEGIN();
@@ -228,12 +245,12 @@ int main(int, char**) {
     RUN_TEST(test_the_registry_stops_rather_than_overruns);
 
     RUN_TEST(test_the_list_is_in_title_order);
-    RUN_TEST(test_a_pinned_app_is_the_row_at_the_top);
-    RUN_TEST(test_pinned_apps_are_in_title_order_among_themselves);
+    RUN_TEST(test_a_lower_order_comes_first);
+    RUN_TEST(test_a_higher_order_goes_to_the_bottom);
+    RUN_TEST(test_every_order_is_available_not_just_the_two_ends);
+    RUN_TEST(test_apps_sharing_an_order_fall_back_to_the_title);
+    RUN_TEST(test_the_default_leaves_room_at_both_ends);
     RUN_TEST(test_apps_that_tie_keep_the_order_they_registered_in);
-    RUN_TEST(test_an_app_marked_last_is_the_row_at_the_bottom);
-    RUN_TEST(test_a_pin_still_wins_when_something_else_is_marked_last);
-    RUN_TEST(test_apps_marked_last_are_in_title_order_among_themselves);
     RUN_TEST(test_sorting_loses_nothing_and_invents_nothing);
     RUN_TEST(test_sorting_nothing_is_not_a_crash);
 

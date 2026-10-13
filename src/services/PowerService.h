@@ -3,8 +3,9 @@
 //  PowerService - battery, charge state, and the EXT_5V rail.
 //
 //  M5Unified leaves EXT_5V disabled at boot, which also removes power from the
-//  IR transmitter and receiver. Rather than let each app remember that, the
-//  rail is refcounted here and driven by the capability system.
+//  Grove and Hat rails, PORT.A's 5V pin among them. Rather than let each app
+//  remember that, the rail is refcounted here and driven by the capability
+//  system.
 // -----------------------------------------------------------------------------
 #include <cstdint>
 

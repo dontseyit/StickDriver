@@ -33,7 +33,7 @@ constexpr AppInfo kInfo{
     .subtitle = "what each tool is for",
     .group    = "SYS",
     // The bottom of the launcher: a page about the tools is not one of them.
-    .last     = true,
+    .order    = 250,
     .needs    = caps(Cap::Display),
     .rotation = 1,
     .tickHz   = 10,

@@ -11,6 +11,8 @@ src/apps/FolderApp.h
 src/apps/HelpApp.cpp
 src/apps/LauncherApp.cpp
 src/apps/SystemInfoApp.cpp
+src/apps/games/DiversApp.cpp
+src/apps/games/GamesApp.cpp
 src/core/App.h
 src/core/AppManager.cpp
 src/core/AppManager.h
@@ -26,10 +28,10 @@ src/idf_component.yml
 src/main.cpp
 src/mathx/ButtonGrammar.cpp
 src/mathx/ButtonGrammar.h
+src/mathx/Divers.cpp
+src/mathx/Divers.h
 src/mathx/Fm.cpp
 src/mathx/Fm.h
-src/mathx/IrDecode.cpp
-src/mathx/IrDecode.h
 src/mathx/NoteChars.h
 src/mathx/NoteText.cpp
 src/mathx/NoteText.h
@@ -50,8 +52,6 @@ src/services/ImuService.cpp
 src/services/ImuService.h
 src/services/InputService.cpp
 src/services/InputService.h
-src/services/IrService.cpp
-src/services/IrService.h
 src/services/MicService.cpp
 src/services/MicService.h
 src/services/MoodService.cpp
@@ -87,6 +87,7 @@ src/web/PageRegistry.h
 src/web/WebOut.h
 test/test_buttons/test_main.cpp
 test/test_caps/test_main.cpp
+test/test_divers/test_main.cpp
 test/test_registry/test_main.cpp
 test/test_thermal/test_main.cpp
 test/test_web/test_main.cpp

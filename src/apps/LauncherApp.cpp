@@ -24,7 +24,7 @@ constexpr AppInfo kInfo{
     // A list and a cursor; 160 MHz is plenty.
     .cpuMhz   = 160,
     .accent   = ui::theme::kAccent,
-    .what     = "The launcher. Every tool by name, pinned ones first. Folders hold what named them.",
+    .what     = "The launcher. Every tool by name, in the order each one asks for. Folders hold what named them.",
     .how      = "B moves the cursor, A opens.",
     .care     = "Hold B in any tool to come back. The framework enforces it.",
 };

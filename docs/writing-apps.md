@@ -80,9 +80,9 @@ to draw incrementally; there is no guarantee about what was there before.
 A frame drawn half in one screen and half in the next is the bug you get
 otherwise.
 
-**Put non-obvious maths in `mathx/`** — no Arduino headers — and write host
-tests for it. If the correctness of your app is not visually obvious, this is
-the difference between a tool and a toy.
+**Put non-obvious maths in `mathx/`**, which takes no Arduino headers, and write
+host tests for it. If the correctness of your app is not visually obvious, this
+is the difference between a tool and a toy.
 
 **Persist through `Settings`**, keyed by your `AppInfo::id`. Version your blobs
 with a magic number so an old record is ignored rather than misread.
@@ -170,8 +170,7 @@ Four rules:
    service from one side and the page reads it from the other; one app runs at a time, so a
    page cannot ask the app anything.
 4. **`css` is for what one page alone wants.** A rule two pages want belongs in
-   the frame, in `web/Console.cpp`, where it cannot fork — there were two
-   stylesheets once and they had drifted.
+   the frame, in `web/Console.cpp`, where it cannot fork.
 
 Write nothing long into `putf()`: its scratch line is 512 bytes and it truncates
 in silence. Long prose is `put()`, and anything that came from outside the page

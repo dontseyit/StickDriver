@@ -13,7 +13,7 @@ Everything below follows from that.
 
 ```
                   ┌───────────────────────────────────────────┐
-   apps/          │ LEVEL   SYSTEM   (IR)   (RF)   (…)        │  one .cpp each
+   apps/          │ LEVEL   SYSTEM   (RF)   (…)               │  one .cpp each
                   ├───────────────────────────────────────────┤
    core/          │ AppManager   AppRegistry   App   Events   │  lifecycle
                   ├───────────────────────────────────────────┤
@@ -60,15 +60,20 @@ in `Settings`.
 
 The StickS3 has peripherals that are actively hostile to one another:
 
-- the IR receiver **cannot work** while the speaker amplifier is powered;
-- IR needs the `EXT_5V` rail that M5Unified deliberately switches **off** at boot;
-- and one rule is a preference rather than a hazard: Library Mode, the
-  device-wide silence switch on SYSTEM, is enforced in the same place, because
-  a decision every tool must obey cannot be left to every tool.
+- the microphone **cannot record** while the speaker amplifier is powered;
+- PORT.A needs the `EXT_5V` rail that M5Unified deliberately switches **off** at
+  boot;
+- the infrared receiver **reads nothing** while the speaker amplifier is powered,
+  and the infrared LED and receiver sit on `EXT_5V` too;
+- WiFi and BLE share one 2.4 GHz front end, so running both halves each one's
+  rate;
+- and one rule is a preference rather than a hazard. Library Mode, the
+  device-wide silence switch on SYSTEM, is enforced in the same place, because a
+  decision every tool must obey cannot be left to every tool.
 
 Left to each app, that knowledge gets copied, drifts, and eventually an audio
-app ships that silently breaks the IR app. So apps do not touch peripherals.
-They *declare* what they need:
+app ships that silently breaks a recording app. So apps do not touch
+peripherals. They *declare* what they need:
 
 ```cpp
 .needs = Cap::Display | Cap::Imu,
@@ -78,11 +83,12 @@ They *declare* what they need:
 clears it after `onStop()`. All the sequencing lives in one function:
 
 ```cpp
-static CapMask expandImplied(CapMask want) {
-    if (has(want, Cap::IrTx) || has(want, Cap::IrRx)) want |= Cap::Ext5V;
+CapMask expandImplied(CapMask want, bool libraryMode) {
     if (has(want, Cap::PortA)) want |= Cap::Ext5V;
-    if (has(want, Cap::IrRx)) want &= ~caps(Cap::Speaker);
-    if (systemSettings().libraryMode()) want &= ~caps(Cap::Speaker);
+    if (has(want, Cap::Ir))    { want |= Cap::Ext5V; want &= ~caps(Cap::Speaker); }
+    if (has(want, Cap::Mic))   want &= ~caps(Cap::Speaker);
+    if (libraryMode)           want &= ~caps(Cap::Speaker);
+    if (has(want, Cap::WiFi))  want &= ~caps(Cap::Ble);
     return want;
 }
 ```
@@ -95,10 +101,9 @@ already marked acquired.
 Releases happen before acquisitions, so the conflicting peripheral is always
 freed before its replacement is claimed. `EXT_5V` is refcounted in
 `PowerService`, so two consumers cannot switch the rail out from under each
-other, and it is sequenced explicitly rather than by bit position — power rails
-come up before anything that sits on them and go down after, because an IR
-receiver created before its supply arrives spends its first moments watching a
-floating pin.
+other, and it is sequenced explicitly rather than by bit position. Power rails
+come up before anything that sits on them and go down after, because a PORT.A
+module addressed before its supply arrives answers no scan.
 
 **Release what you did not acquire.** `applyCaps()` works on the difference
 between the wanted set and `_active`, which quietly assumes `_active = 0` means
@@ -106,22 +111,41 @@ between the wanted set and `_active`, which quietly assumes `_active = 0` means
 and on this board it is wrong: the speaker amplifier is a latched bit in the
 M5PM1 PMIC (register `0x11` bit 3), and the PMIC keeps its state across an ESP32
 reset. One beep in a previous session leaves the amplifier enabled at the next
-boot — and IR reception does not work at all while it is on, silently. So
+boot, and nothing in the release path clears it, because nothing acquired it. So
 `ServiceHub::begin()` drives the amplifier down explicitly to establish a
-baseline, and acquiring `Cap::IrRx` asserts it again rather than trusting that
-clearing a bit released anything. Any future peripheral whose state outlives a
-reset needs the same treatment.
+baseline rather than trusting that clearing a bit released anything. Any future
+peripheral whose state outlives a reset needs the same treatment, and so does a
+pin a library leaves driven: M5Unified leaves G46, the infrared LED, high, so
+`ServiceHub::begin()` drives it low. Acquiring `Cap::Ir` drives the amplifier
+down again: a speaker start that fails leaves it raised while `AudioService`
+records it as off.
 
 **A rail is a dependency, not a decoration.** `Cap::PortA` implies `Cap::Ext5V`
-for the same reason IR does: PORT.A's red wire *is* the EXT_5V rail. Without the
-implication the bus opens onto an unpowered module, the scan comes back empty,
-and the app reports a wiring fault that does not exist. Whenever a capability's
+because PORT.A's red wire *is* the EXT_5V rail. Without the implication the bus
+opens onto an unpowered module, the scan comes back empty, and the app reports a
+wiring fault that does not exist. Whenever a capability's
 hardware lives on a switched supply, the implication belongs in `expandImplied`
-rather than in the app that noticed it first.
+rather than in the app that noticed it first. `Cap::Ir` implies the rail for the
+same reason.
 
 **To add a peripheral:** add a bit to `Cap`, add a case to
 `ServiceHub::acquire`/`release`, and add any conflict rule to `expandImplied`.
-Nothing else changes.
+Nothing else changes. A driver only one app uses can be owned by that app; the bit still
+carries the rail and the conflicts.
+
+An app that needs a peripheral only sometimes calls `apps().requestCaps(extra)`
+rather than declaring it permanently. Audio the user can switch off, and a radio
+used on one screen, are both this case. The declared set is restored when the
+next app starts, so a forgotten release cannot leak a peripheral into another
+app. The level uses this to drop the speaker entirely when its tone is off,
+which matters on a 250 mAh cell.
+
+One trap worth knowing, because it fails silently: `M5.begin()` only
+*configures* the speaker and microphone when `cfg.internal_spk` / `internal_mic`
+are true. It does not start them. Leave those false and the I2S pins are never
+committed, so a later `Speaker.begin()` has nothing to work with and simply
+makes no sound. Both are true in [main.cpp](../src/main.cpp); power is still
+claimed on demand.
 
 ### Pages register themselves too
 
@@ -131,10 +155,11 @@ shows, ending in `SD_REGISTER_PAGE`. Routes, buttons and footer links are all
 derived from that registry, so deleting a feature's directory deletes its pages
 and its place in every other page's navigation.
 
-The front page is the base's own — `web/IndexPage.cpp`, the device's raw readings
-and a button per registered page — so a firmware with no apps in it still answers
-a phone. It was NOTES' form for as long as NOTES was the only app that wanted a
-network, which meant deleting that app took the console's root page with it.
+The front page belongs to the base. `web/IndexPage.cpp` serves the device's raw
+readings and a button for every registered page, so a firmware with no apps in
+it still answers a phone. It was NOTES' form for as long as NOTES was the only
+app that wanted a network, which meant deleting that app took the console's root
+page with it.
 
 See [writing-apps.md](writing-apps.md#adding-a-page-to-the-console).
 
@@ -158,7 +183,7 @@ the heap.
 ### Presentation is the app's, until the next app starts
 
 `setRotation()` and `setChrome()` let an app reorient itself to how it is being
-held. Both are overrides rather than settings: `startApp()` restores the declared
+held. Both are overrides rather than settings. `startApp()` restores the declared
 rotation and puts the chrome back, so an app that turned the device sideways and
 then exited cannot leave it that way for the one after it.
 
@@ -179,7 +204,7 @@ moves under a radio that has just come up. It defaults to 240 - what every app
 ran at before the field existed - so a tool's timing is its own to state rather
 than the framework's to decide for it. The launcher, HELP and GAMES ask for 160
 and idle at 27.6 mA rather than 32.9; APB is a fixed 80 MHz on the S3 whatever
-the core does, so display SPI, RMT and I2S are unaffected by the choice.
+the core does, so display SPI and I2S are unaffected by the choice.
 
 `dimAfterSec` is the same idea for the panel: the framework's idle ladder dims at
 45 s unless the app states otherwise, because a tool that is carried and listened
@@ -213,7 +238,7 @@ the web server goes on answering. What stops is the frame push, which while the
 panel is dark is 64 KB of SPI nobody is looking at.
 
 The idle clock lives in `MoodService`, and it resets on a press. The press that wakes a blanked panel is spent doing exactly that
-and is not delivered to the app: pressing `A` to see how a recording is getting
+and is not delivered to the app. Pressing `A` to see how a recording is getting
 on must not also stop it.
 
 ## 5. Input is a grammar, not a pin
@@ -230,8 +255,8 @@ debounced state and fixes the grammar device-wide:
 | `A`+`B` together | **MENU** — enforced by the framework |
 
 `Back` and `Menu` are synthesised centrally and handled by `AppManager` when an
-app does not consume them, so **no app can ever trap the user** — which matters
-a great deal on a device with no home button. Events are queued rather than
+app does not consume them, so **no app can ever trap the user**. That matters on
+a device with no home button. Events are queued rather than
 dispatched from the poll, so an app can be torn down mid-gesture without an
 event landing on a destroyed object.
 

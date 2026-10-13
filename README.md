@@ -1,4 +1,4 @@
-# Stick Screwdriver
+# StickDriver
 
 A firmware for the **M5Stack StickS3**, kind of a Swiss Army Knife.
 
@@ -15,7 +15,6 @@ This is a long-term project I originally created for my own personal fun. I want
 | IMU | BMI270 @ I2C 0x68 |
 | Power | M5PM1 @ I2C 0x6e, 250 mAh cell |
 | Audio | ES8311 codec, AW8737 amp, MEMS mic |
-| IR | TX G46 / RX G42 |
 | Buttons | KEY1 G11, KEY2 G12 |
 | Expansion | Hat2 bus, HY2.0-4P Port A |
 
@@ -41,6 +40,22 @@ other pages the apps you installed registered.
 
 The access point is open and anything served is readable by anyone in range.
 Turn it off when you are done.
+
+## GAMES
+
+**DIVERS** — a formation shooter in the style of Galaxian (1979). A formation of
+aliens sits above you, and the ones that dive out of it are the ones that can
+kill you. Tilt to move; the gun fires on its own. `A` re-centres the tilt, hold
+`A` pauses. One bullet at a time, as in the arcade, so a miss costs you the shot
+until it clears.
+
+It runs portrait, as the cabinet did: the game is the column of empty panel
+above the ship. Physics ticks at 60 Hz and the panel redraws at 30, because a
+full frame is 65 kB down a 40 MHz bus and costs 13 ms whatever the CPU is doing.
+
+GAMES is a folder: it lists whatever games are compiled in, and holding `B`
+inside one comes back to the list rather than the launcher. A second game is one
+file that names `games` as its parent — nothing else changes.
 
 ## Adding an app
 

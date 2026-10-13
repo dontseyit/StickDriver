@@ -3,13 +3,14 @@
 //  Hardware capabilities.
 //
 //  This is what stops one app breaking another. The StickS3 has mutually
-//  hostile peripherals: the IR receiver does not work while the speaker
-//  amplifier is powered, and IR needs EXT_5V switched on where M5Unified
-//  switched it off. Each app declares what it needs and ServiceHub owns the
-//  arbitration in one place.
+//  hostile peripherals: the microphone and the speaker amplifier share their
+//  clock lines, and PORT.A needs EXT_5V switched on where M5Unified switched it
+//  off. Each app declares what it needs and ServiceHub owns the arbitration in
+//  one place.
 //
-//  Add a peripheral -> add a bit here and a case in ServiceHub::applyCaps().
-//  No existing app changes, and none can get the sequencing wrong.
+//  Add a peripheral -> add a bit here, a case in ServiceHub::acquire() and
+//  release(), and any conflict rule to expandImplied() below. No existing app
+//  changes, and none can get the sequencing wrong.
 // -----------------------------------------------------------------------------
 #include <cstdint>
 
@@ -21,12 +22,11 @@ enum class Cap : uint32_t {
     Imu      = 1u << 1,
     Speaker  = 1u << 2,
     Mic      = 1u << 3,
-    IrTx     = 1u << 4,
-    IrRx     = 1u << 5,
-    Ext5V    = 1u << 6,  ///< power on the Grove / Hat rails (implied by IR)
-    PortA    = 1u << 7,  ///< external I2C on G9/G10
-    WiFi     = 1u << 8,
-    Ble      = 1u << 9,
+    Ext5V    = 1u << 4,  ///< power on the Grove / Hat rails (implied by PORT.A)
+    PortA    = 1u << 5,  ///< external I2C on G9/G10
+    WiFi     = 1u << 6,
+    Ble      = 1u << 7,
+    Ir       = 1u << 8,  ///< infrared LED G46 and receiver G42 (implies EXT_5V)
 };
 
 using CapMask = uint32_t;

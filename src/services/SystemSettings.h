@@ -11,7 +11,7 @@
 //
 //  Library Mode is the first of them: every sound off, in every tool. It is not
 //  enforced here. ServiceHub strikes Cap::Speaker from every request while it
-//  is on, beside the rules that already say IR and the microphone win over the
+//  is on, beside the rule that already says the microphone wins over the
 //  speaker, so the amplifier is never powered rather than powered and told to
 //  keep quiet.
 //

@@ -35,6 +35,7 @@ constexpr AppInfo kInfo{
     .title    = "SYSTEM",
     .subtitle = "board vitals",
     .group    = "SYS",
+    .order    = 140,
     .needs    = Cap::Display | Cap::Imu,
     .rotation = 1,
     .tickHz   = 10,

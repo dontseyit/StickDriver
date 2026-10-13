@@ -5,9 +5,9 @@
 # That table gives NVS 0x5000 - twenty kilobytes, five pages - and NVS keeps one
 # page free to compact into, so four pages hold everything. On this device that
 # is shared between MOOD (two 776-byte blobs rewritten every five minutes),
-# ROOMS (three 768-byte nights and a radio record), IR CLONE (eight 516-byte
-# codes), LEVEL, CALIBRATION, the thermal plateau - and the WiFi driver's
-# own PHY calibration and station config.
+# ROOMS (three 768-byte nights and a radio record), LEVEL, CALIBRATION, the
+# thermal plateau - and the WiFi driver's own PHY calibration and station
+# config.
 #
 # It ran out. The failure is worth describing because none of it says "NVS":
 # nvs_set_blob returns NOT_ENOUGH_SPACE, so WiFi cannot store its calibration,

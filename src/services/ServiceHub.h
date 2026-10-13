@@ -6,21 +6,23 @@
 //  hands that mask here before onStart() and clears it after onStop(). All the
 //  awkward, board-specific sequencing lives in applyCaps() and nowhere else:
 //
-//    * IR reception is impossible while the speaker amplifier is powered, so
-//      requesting IrRx forcibly stops the speaker.
-//    * IR needs the EXT_5V rail that M5Unified switches off at boot, so IrTx
-//      and IrRx both imply Ext5V, and so does PORT.A, whose 5V pin is that same
-//      rail: an unpowered module cannot answer a scan.
+//    * The microphone cannot record while the speaker amplifier is powered, so
+//      requesting Mic forcibly stops the speaker.
+//    * PORT.A needs the EXT_5V rail that M5Unified switches off at boot, since
+//      its 5V pin is that rail: an unpowered module cannot answer a scan.
+//    * The infrared receiver reads nothing while the speaker amplifier is
+//      powered, and the infrared pair sits on EXT_5V, so requesting Ir drops
+//      the speaker and raises the rail.
+//    * WiFi and BLE share one 2.4 GHz front end, so asking for WiFi drops BLE.
 //    * Library Mode, the device-wide silence switch on SYSTEM, strikes the
 //      speaker from every request while it is on.
 //
-//  Encoding those rules once means a future IR app cannot be broken by an audio
+//  Encoding those rules once means a recording app cannot be broken by an audio
 //  app, and neither has to know the other exists.
 // -----------------------------------------------------------------------------
 #include "core/Caps.h"
 #include "services/AudioService.h"
 #include "services/ImuService.h"
-#include "services/IrService.h"
 #include "services/MicService.h"
 #include "services/MoodService.h"
 #include "services/PortService.h"
@@ -48,7 +50,6 @@ public:
     MicService&   mic()   { return _mic; }
     MoodService&  mood()  { return _mood; }
     RadioService& radio() { return _radio; }
-    IrService&    ir()    { return _ir; }
     PortService&  port()  { return _port; }
     ThermalService& thermal() { return _thermal; }
 
@@ -65,7 +66,6 @@ private:
     MicService   _mic;
     MoodService  _mood;
     RadioService _radio;
-    IrService    _ir;
     PortService  _port;
     ThermalService _thermal;
     CapMask      _active = 0;

@@ -181,8 +181,8 @@ void AppManager::dispatchEvents() {
 void AppManager::updateBacklight() {
     const uint8_t now = M5.Display.getBrightness();
     // What to restore to, sampled while awake so it follows the app. Never
-    // zero: IR CLONE blanks the panel deliberately while probing for display
-    // coupling, and capturing that would restore into the dark.
+    // zero: an app that blanks the panel deliberately would otherwise have that
+    // captured, and the restore would put back the dark.
     if (_backlight == Backlight::Awake && now > 0) _wakeBright = now;
     if (_wakeBright == 0) return;   // nothing sampled yet, so nothing to put back
 

@@ -42,8 +42,8 @@ public:
     /// The amplifier is a latched bit in the M5PM1 PMIC, register 0x11 bit 3,
     /// and the PMIC keeps its state across an ESP32 reset. So a session that
     /// played a single beep leaves the amplifier enabled for the NEXT boot, and
-    /// a release path that only undoes what it acquired never clears it. IR
-    /// reception does not work at all while it is on.
+    /// a release path that only undoes what it acquired never clears it. So the
+    /// hub drives it down once on the way up, to establish a baseline.
     void forceOff();
     bool available() const { return _on; }
 

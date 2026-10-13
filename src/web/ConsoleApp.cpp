@@ -51,6 +51,7 @@ constexpr AppInfo kInfo{
     .title    = "CONSOLE",
     .subtitle = "this device, on a phone",
     .group    = "SYS",
+    .order    = 20,
     .needs    = Cap::Display | Cap::WiFi,
     .rotation = 1,
     // Above the loop's own rate on purpose: the web server is synchronous, so a
