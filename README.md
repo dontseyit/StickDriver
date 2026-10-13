@@ -1,9 +1,10 @@
 # StickDriver
 
-A firmware for the **M5Stack StickS3**, kind of a Swiss Army Knife.
+StickDriver is a versatile firmware base for the **M5Stack StickS3** that provides a framework with hardware services already wired up and arbitrated. It brings up the display, IMU, battery, audio, microphone, expansion port, WiFi and Bluetooth, so you can develop apps without wiring the hardware yourself and use the provided service interfaces. It comes with a ready-to-use web console over the stick's own WiFi AP.
 
-This is a long-term project I originally created for my own personal fun. I wanted to make it open source, I exported the architecture and core structure to this public repository. The export process was carried out by Claude Code; personal apps and those that could not be licensed were removed, leaving only the underlying framework—which was then exported for general use—and certain issues were resolved.
+The app registry allows further app development using the framework. Settings for each app are stored in NVS, and the base builds the HELP pages from what each app declares.
 
+Apps are still being added; today it ships with the app launcher; the console and the system app as well as a game called DIVERS.
 
 ## Hardware
 
@@ -55,7 +56,7 @@ full frame is 65 kB down a 40 MHz bus and costs 13 ms whatever the CPU is doing.
 
 GAMES is a folder: it lists whatever games are compiled in, and holding `B`
 inside one comes back to the list rather than the launcher. A second game is one
-file that names `games` as its parent — nothing else changes.
+file that names `games` as its parent, and nothing else changes.
 
 ## Adding an app
 
