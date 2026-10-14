@@ -14,7 +14,7 @@ namespace {
 
 constexpr AppInfo kInfo{
     .id       = "launcher",
-    .title    = "SCREWDRIVER",
+    .title    = "STICKDRIVER",
     .subtitle = "tool index",
     .group    = "SYS",
     .needs    = caps(Cap::Display),

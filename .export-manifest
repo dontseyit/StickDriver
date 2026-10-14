@@ -4,6 +4,7 @@ LICENSE
 README.md
 docs/architecture.md
 docs/device.md
+docs/theme.md
 docs/writing-apps.md
 partitions_screwdriver.csv
 platformio.ini
@@ -28,10 +29,12 @@ src/idf_component.yml
 src/main.cpp
 src/mathx/ButtonGrammar.cpp
 src/mathx/ButtonGrammar.h
+src/mathx/Contrast.h
 src/mathx/Divers.cpp
 src/mathx/Divers.h
 src/mathx/Fm.cpp
 src/mathx/Fm.h
+src/mathx/ListWindow.h
 src/mathx/NoteChars.h
 src/mathx/NoteText.cpp
 src/mathx/NoteText.h
@@ -87,7 +90,9 @@ src/web/PageRegistry.h
 src/web/WebOut.h
 test/test_buttons/test_main.cpp
 test/test_caps/test_main.cpp
+test/test_contrast/test_main.cpp
 test/test_divers/test_main.cpp
+test/test_listwindow/test_main.cpp
 test/test_registry/test_main.cpp
 test/test_thermal/test_main.cpp
 test/test_web/test_main.cpp

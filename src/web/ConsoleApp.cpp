@@ -73,7 +73,7 @@ constexpr int  kKeyLen        = 8;   ///< WPA2's minimum, and nobody wants more
 /// (telling two of these apart) costs more than it is worth. Two in one room
 /// would be two networks of one name with different keys, and a phone would
 /// pick by signal strength and fail to join one.
-constexpr const char* kSsid = "Screwdriver";
+constexpr const char* kSsid = "StickDriver";
 
 constexpr uint8_t kApChannel = 6;
 constexpr int     kQrBox     = 111;
@@ -127,7 +127,7 @@ public:
 
         auto& radio = services().radio();
 
-        // Scanned, not typed. "Join Screwdriver, then find the key, then type
+        // Scanned, not typed. "Join StickDriver, then find the key, then type
         // it" is three instructions and each one is somewhere to stop; a camera
         // pointed at this is none.
         if (_qr[0]) c.qrcode(_qr, 6, 12, kQrBox, 1, /*margin*/ true);

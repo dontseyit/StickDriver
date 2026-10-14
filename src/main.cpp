@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-//  Screwdriver - a pocket multi-tool for the M5Stack StickS3.
+//  StickDriver - a pocket multi-tool for the M5Stack StickS3.
 //
 //  main() does almost nothing: bring up the board, bring up the services, hand
 //  control to the AppManager. Every feature is an app registered from its own
@@ -32,7 +32,7 @@ void setup() {
     cfg.output_power    = false;  // EXT_5V is refcounted by PowerService
     M5.begin(cfg);
 
-    SD_LOGI("boot", "Screwdriver up: %d apps registered",
+    SD_LOGI("boot", "StickDriver up: %d apps registered",
             static_cast<int>(sd::AppRegistry::instance().count()));
 
     sd::services().begin();

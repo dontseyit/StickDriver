@@ -30,6 +30,18 @@ constexpr uint16_t kErr     = rgb(0xF8, 0x51, 0x49);
 constexpr uint16_t kBarH    = 14;  ///< status bar height, px
 constexpr uint16_t kFootH   = 12;  ///< footer hint height, px
 
+// -- a list row ---------------------------------------------------------------
+//  A row carries a title and an optional subtitle. Both are centred on a fixed
+//  line rather than on their own font, so rows stay aligned as fonts change.
+constexpr uint16_t kRowH         = 26;  ///< one list row, px
+constexpr uint16_t kRowPad       = 10;  ///< text inset from the left edge, px
+constexpr uint16_t kRowTitleY    = 9;   ///< title centre line in a row with a subtitle
+constexpr uint16_t kRowSubtitleY = 19;  ///< subtitle centre line
+
+static_assert(kBarH + kFootH + kRowH <= 135,
+              "the chrome and one row no longer fit the panel");
+static_assert(kRowSubtitleY < kRowH, "the subtitle falls outside its row");
+
 }  // namespace theme
 
 /// A colour `t` of the way from `a` to `b`, in RGB565.
@@ -39,7 +51,7 @@ constexpr uint16_t kFootH   = 12;  ///< footer hint height, px
 /// a hue tracking a measurement) is a mix. Unpacked per channel rather than
 /// interpolated on the packed value, which would carry the green field's low
 /// bits into red.
-inline uint16_t mix565(uint16_t a, uint16_t b, float t) {
+constexpr uint16_t mix565(uint16_t a, uint16_t b, float t) {
     if (t <= 0.0f) return a;
     if (t >= 1.0f) return b;
     const int ar = (a >> 11) & 0x1F, ag = (a >> 5) & 0x3F, ab = a & 0x1F;

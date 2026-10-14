@@ -1,20 +1,22 @@
 #include "ui/Widgets.h"
 
+#include "mathx/Contrast.h"
+#include "mathx/ListWindow.h"
+
 #include <cstdio>
 #include <cstring>
 
 namespace sd::ui {
 
 namespace {
-constexpr int kRowH = 26;
-
 /// A small filled tag in the status bar, drawn right-to-left from `right`,
 /// which it moves on past itself so the next one lands beside it.
 void drawChip(Canvas& c, int h, int& right, const char* text, uint16_t bg) {
     c.setFont(&fonts::Font0);
     const int tw = c.textWidth(text);
     c.fillRoundRect(right - tw - 5, 2, tw + 6, h - 4, 2, bg);
-    c.textAt(right - tw - 2, h / 2, text, theme::kBg, &fonts::Font0, middle_left);
+    c.textAt(right - tw - 2, h / 2, text, readableOn(bg, theme::kText, theme::kBg),
+             &fonts::Font0, middle_left);
     right -= tw + 9;
 }
 }
@@ -24,7 +26,7 @@ int drawStatusBar(Canvas& c, const StatusInfo& s) {
     c.fillRect(0, 0, c.w(), h, theme::kSurface);
     c.drawFastHLine(0, h, c.w(), s.accent);
 
-    c.textAt(4, h / 2, s.title, s.accent, &fonts::Font0, middle_left);
+    c.textAt(4, h / 2, s.title, theme::kAccent, &fonts::Font0, middle_left);
 
     int right = c.w() - 3;
 
@@ -70,7 +72,8 @@ void drawToast(Canvas& c, const char* msg, uint16_t colour) {
     const int x  = (c.w() - bw) / 2;
     const int y  = c.h() - theme::kFootH - bh - 6;
     c.fillRoundRect(x, y, bw, bh, 3, colour);
-    c.textAt(c.w() / 2, y + bh / 2, msg, theme::kBg, &fonts::Font0, middle_center);
+    c.textAt(c.w() / 2, y + bh / 2, msg, readableOn(colour, theme::kText, theme::kBg),
+             &fonts::Font0, middle_center);
 }
 
 // -----------------------------------------------------------------------------
@@ -99,19 +102,14 @@ void ListMenu::draw(Canvas& c, int top, int bottom, Provider provider, void* ctx
         return;
     }
 
-    const int visible = (bottom - top) / kRowH;
+    const int visible = (bottom - top) / theme::kRowH;
     if (visible <= 0) return;
 
-    // Keep the selection inside the window without recentring on every step:
-    // the list only scrolls when the cursor would otherwise leave the screen.
-    if (_sel < _top) _top = _sel;
-    if (_sel >= _top + visible) _top = _sel - visible + 1;
-    if (_top > _count - visible) _top = _count - visible;
-    if (_top < 0) _top = 0;
+    _top = listWindowTop(_sel, _count, visible, _top);
 
     for (int row = 0; row < visible && (_top + row) < _count; ++row) {
         const int idx = _top + row;
-        const int y   = top + row * kRowH;
+        const int y   = top + row * theme::kRowH;
 
         MenuItem item;
         provider(idx, item, ctx);
@@ -119,14 +117,14 @@ void ListMenu::draw(Canvas& c, int top, int bottom, Provider provider, void* ctx
         const bool     sel        = (idx == _sel);
 
         if (sel) {
-            c.fillRoundRect(2, y + 1, c.w() - 4, kRowH - 2, 3, theme::kSurface);
-            c.fillRect(2, y + 1, 3, kRowH - 2, itemAccent);
+            c.fillRoundRect(2, y + 1, c.w() - 4, theme::kRowH - 2, 3, theme::kSurface);
+            c.fillRect(2, y + 1, 3, theme::kRowH - 2, itemAccent);
         }
-        c.textAt(10, y + (item.subtitle ? 9 : kRowH / 2), item.title,
-                 sel ? theme::kText : theme::kDim, titleFont, middle_left);
+        c.textAt(theme::kRowPad, y + (item.subtitle ? theme::kRowTitleY : theme::kRowH / 2),
+                 item.title, sel ? theme::kText : theme::kDim, titleFont, middle_left);
         if (item.subtitle) {
-            c.textAt(10, y + 19, item.subtitle, sel ? itemAccent : theme::kFaint,
-                     &fonts::Font0, middle_left);
+            c.textAt(theme::kRowPad, y + theme::kRowSubtitleY, item.subtitle,
+                     sel ? theme::kDim : theme::kFaint, &fonts::Font0, middle_left);
         }
     }
 

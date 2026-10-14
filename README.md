@@ -77,4 +77,7 @@ How the framework fits together, and what each layer owes the others:
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+The code is MIT. See [LICENSE](LICENSE).
+
+The StickDriver name and the banner are not part of that licence. Fork the
+firmware and build on it, and give what you ship a name of your own.

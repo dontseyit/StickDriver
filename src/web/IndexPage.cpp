@@ -87,7 +87,7 @@ void indexPage(Page& p) {
     const int          phones = radio.apClients();
     const unsigned long served = static_cast<unsigned long>(console().served());
 
-    o.put("<h1>SCREWDRIVER</h1>");
+    o.put("<h1>STICKDRIVER</h1>");
     o.putf("<p class=sub>%s &middot; %d phone%s &middot; %lu page%s served</p>",
            radio.apAddress(), phones, phones == 1 ? "" : "s", served,
            served == 1 ? "" : "s");
@@ -109,7 +109,7 @@ const char kNote[] PROGMEM =
 constexpr PageInfo kIndexPage{
     .path   = "/",
     .method = Method::Get,
-    .title  = "SCREWDRIVER",
+    .title  = "STICKDRIVER",
     .nav    = "the front page",
     .note   = kNote,
     .fn     = indexPage,

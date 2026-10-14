@@ -80,6 +80,9 @@ to draw incrementally; there is no guarantee about what was there before.
 A frame drawn half in one screen and half in the next is the bug you get
 otherwise.
 
+**Take a colour from the palette, never a raw value.** The roles are in
+[theme.md](theme.md), and an app declares one `accent` of its own.
+
 **Put non-obvious maths in `mathx/`**, which takes no Arduino headers, and write
 host tests for it. If the correctness of your app is not visually obvious, this
 is the difference between a tool and a toy.
